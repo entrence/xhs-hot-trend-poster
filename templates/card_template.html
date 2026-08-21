@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1080px;
+    height: 1440px;
+    font-family: 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+    background: linear-gradient(135deg, {{BG_TOP}}, {{BG_BOTTOM}});
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 40px;
+  }
+  .header {
+    width: 100%;
+    background: linear-gradient(135deg, {{ACCENT_TOP}}, {{ACCENT_BOTTOM}});
+    border-radius: 24px;
+    padding: 36px 40px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  }
+  .header h1 {
+    color: white;
+    font-size: 48px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .header .subtitle {
+    color: rgba(255,255,255,0.9);
+    font-size: 26px;
+    margin-top: 10px;
+  }
+  .card {
+    width: 100%;
+    background: white;
+    border-radius: 24px;
+    padding: 40px 35px;
+    margin-top: 30px;
+    flex: 1;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    border: 2px solid {{BORDER_COLOR}};
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    padding: 22px 0;
+    border-bottom: 1px dashed {{DASH_COLOR}};
+    font-size: 34px;
+    color: #4a4a4a;
+  }
+  .item:last-child { border-bottom: none; }
+  .item .num {
+    font-weight: 700;
+    color: {{ACCENT_TOP}};
+    min-width: 60px;
+    font-size: 36px;
+  }
+  .item .text {
+    flex: 1;
+    margin-left: 16px;
+  }
+  .item .emoji {
+    font-size: 40px;
+    margin-left: 10px;
+  }
+  .footer {
+    margin-top: 24px;
+    text-align: center;
+  }
+  .tags {
+    color: {{ACCENT_TOP}};
+    font-size: 26px;
+  }
+  .page {
+    color: #b0b0b0;
+    font-size: 22px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{TITLE}}</h1>
+    <div class="subtitle">{{SUBTITLE}}</div>
+  </div>
+  <div class="card">
+    {{ITEMS}}
+  </div>
+  <div class="footer">
+    <div class="tags">{{TAGS}}</div>
+    <div class="page">{{PAGE_NUM}}</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!--
+  Unified XHS Card Template (1080x1440)
+  - Same palette across all cards in a carousel (user prefers unified design)
+  - Large fonts for phone readability
+  - Max 6 items per card to avoid overflow
+  - Replace {ACCENT_START}/{ACCENT_END} with your accent color
+  - Replace {BG_START}/{BG_END} with your background gradient
+  - Duplicate this file for each card, change page number "X / N"
+
+  Example palette (warm-red, good for travel/energetic topics):
+    ACCENT=#d51717  ACCENT2=#ff6c5c  BG=#fff8f0→#fff3e0
+
+  Example palette (warm-pink, good for lifestyle/emotional topics):
+    ACCENT=#ff6c5c  ACCENT2=#ff82ab  BG=#fdf2f8→#fce7f3
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1080px;height:1440px;font-family:'Noto Sans SC','PingFang SC',sans-serif;position:relative;overflow:hidden;background:linear-gradient(155deg,#fdf2f8,#fce7f3,#fef3f2)}
+.d1{position:absolute;top:-100px;right:-60px;width:320px;height:320px;border-radius:50%;background:rgba(255,108,92,.06)}
+.d2{position:absolute;bottom:-110px;left:-80px;width:360px;height:360px;border-radius:50%;background:rgba(255,130,171,.05)}
+.wrap{position:relative;z-index:1;padding:55px 52px}
+.tag{display:inline-block;background:linear-gradient(135deg,#ff6c5c,#ff82ab);color:#fff;font-size:26px;font-weight:700;padding:8px 24px;border-radius:30px;margin-bottom:16px}
+.ttl{font-size:56px;font-weight:900;color:#3d1010;line-height:1.18;margin-bottom:6px}
+.sub{font-size:28px;color:#b06050;margin-bottom:16px}
+.bar{width:55px;height:5px;background:linear-gradient(90deg,#ff6c5c,#ffc107);border-radius:3px;margin-bottom:20px}
+.item{background:rgba(255,255,255,.9);border-radius:18px;padding:18px 24px;margin-bottom:11px;box-shadow:0 4px 18px rgba(255,108,92,.04);display:flex;gap:18px;align-items:flex-start}
+.ic{flex-shrink:0;font-size:34px;line-height:1.2;width:48px;text-align:center}
+.itxt h3{font-size:32px;color:#3d1010;font-weight:700;margin-bottom:4px;line-height:1.2}
+.itxt p{font-size:27px;color:#6a4040;line-height:1.45}
+.hl{color:#ff6c5c;font-weight:700}
+.foot{position:absolute;bottom:25px;left:52px;right:52px;display:flex;justify-content:space-between;align-items:center}
+.foot-t{font-size:22px;color:#d4a8a0}
+.foot-p{font-size:22px;color:#ff6c5c;font-weight:700}
+</style>
+</head>
+<body>
+<div class="d1"></div><div class="d2"></div>
+<div class="wrap">
+<span class="tag">🔥 TAG_TEXT_HERE</span>
+<div class="ttl">TITLE HERE<br>SECOND LINE</div>
+<div class="sub">SUBTITLE HERE</div>
+<div class="bar"></div>
+<!-- Max 6 items to avoid overflow -->
+<div class="item"><div class="ic">🚀</div><div class="itxt"><h3>Item Title</h3><p>Item description, keep to 1-2 lines max</p></div></div>
+<div class="item"><div class="ic">✨</div><div class="itxt"><h3>Item Title</h3><p>Item description</p></div></div>
+<div class="item"><div class="ic">💡</div><div class="itxt"><h3>Item Title</h3><p>Item description</p></div></div>
+<div class="item"><div class="ic">📌</div><div class="itxt"><h3>Item Title</h3><p>Item description</p></div></div>
+<div class="item"><div class="ic">⭐</div><div class="itxt"><h3>Item Title</h3><p>Item description</p></div></div>
+<div class="item"><div class="ic">🎯</div><div class="itxt"><h3>Item Title</h3><p>Item description</p></div></div>
+</div>
+<div class="foot"><span class="foot-t">系列笔记名称 💗</span><span class="foot-p">1 / 9</span></div>
+</body>
+</html>
