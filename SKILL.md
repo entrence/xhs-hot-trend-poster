@@ -1,7 +1,7 @@
 ---
 name: xhs-hot-trend-poster
 description: "Use when the user asks to search XHS keywords, analyze trends, and publish a note. Searches top 30 notes, summarizes hot topics, generates copy + card image, confirms with user, then publishes."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 metadata:
@@ -31,8 +31,27 @@ Do NOT attempt `browser_navigate` to `xiaohongshu.com` first — XHS blocks data
 ## Prerequisites
 
 1. Read ~/.hermes/notes/xhs.md for account info, pitfalls, and script paths
-2. Ensure aione pc + creator cookies are configured (check with `aione auth xhs status`)
-3. Dependencies: opencv-python, numpy, qrcode, Pillow, crypto-js (npm), fonts-noto-cjk, fonts-noto-color-emoji
+2. **PC cookie required** (`~/.config/aione/xhs/default.json`) — used for both search AND publish. A fresh PC cookie with `web_session` can call Creator APIs directly (see Pitfall #20).
+3. **Creator cookie optional** (`~/.config/aione/xhs/creator.json`) — fallback if PC cookie can't publish. Creator QR login is more prone to HTTP 406 IP blocks.
+4. Cookie validity check (must do at session start):
+   ```python
+   import sys, os, json
+   sys.path.insert(0, os.path.expanduser("~/.local/share/aione/upstreams/Spider_XHS/apis"))
+   sys.path.insert(0, os.path.expanduser("~/.local/share/aione/upstreams/Spider_XHS"))
+   from xhs_pc_apis import XHS_Apis
+   from xhs_utils.xhs_pc.auth import XHSPcAuth
+   with open(os.path.expanduser("~/.config/aione/xhs/default.json")) as f:
+       cookie = json.load(f)["cookie"]
+   if "web_session" not in cookie:
+       print("PC cookie EXPIRED — needs QR re-login (see Cookie Management section)")
+   else:
+       auth = XHSPcAuth.from_cookie(cookie)
+       apis = XHS_Apis(auth)
+       apis.bootstrap()
+       success, msg, result = apis.search_note(query="测试", page=1)
+       print(f"PC cookie valid: {success}")
+   ```
+5. Dependencies: opencv-python, numpy, qrcode, Pillow, crypto-js (npm), fonts-noto-cjk, fonts-noto-color-emoji
 
 ## Workflow
 
@@ -150,7 +169,7 @@ Do NOT publish until user confirms.
 
 Use XHS_Creator_Apis to publish. Critical pitfalls (see ~/.hermes/notes/xhs.md):
 
-1. Read cookie: ~/.config/aione/xhs/creator.json
+1. **Cookie priority: PC cookie first, Creator cookie fallback** — A fresh PC cookie with `web_session` can call Creator APIs directly (see Pitfall #20). Only fall back to `~/.config/aione/xhs/creator.json` if PC cookie publish fails.
 2. Image must be bytes: `with open(path, "rb") as f: img = f.read()`
 3. Set NODE_PATH: `export NODE_PATH=~/.local/share/aione/upstreams/Spider_XHS/node_modules`
 4. note_info["type"] = 0 (PUBLIC! default 1 is private!)
@@ -164,7 +183,11 @@ sys.path.insert(0, os.path.expanduser("~/.local/share/aione/upstreams/Spider_XHS
 from xhs_creator_apis import XHS_Creator_Apis
 from xhs_utils.xhs_creator import XHSCreatorAuth
 
-with open(os.path.expanduser("~/.config/aione/xhs/creator.json")) as f:
+# Try PC cookie first, fall back to Creator cookie
+cookie_path = os.path.expanduser("~/.config/aione/xhs/default.json")
+if not os.path.exists(cookie_path):
+    cookie_path = os.path.expanduser("~/.config/aione/xhs/creator.json")
+with open(cookie_path) as f:
     cookie = json.load(f)["cookie"]
 auth = XHSCreatorAuth.from_cookie(cookie)
 apis = XHS_Creator_Apis(auth)
@@ -181,13 +204,83 @@ note_info = {
     "type": 0,  # 0=public, 1=private(!)
 }
 success, msg, res = apis.post_note(note_info)
+# If PC cookie fails (code=-1), retry with Creator cookie if available
+if not success:
+    creator_path = os.path.expanduser("~/.config/aione/xhs/creator.json")
+    if os.path.exists(creator_path) and cookie_path != creator_path:
+        with open(creator_path) as f:
+            cookie = json.load(f)["cookie"]
+        auth = XHSCreatorAuth.from_cookie(cookie)
+        apis = XHS_Creator_Apis(auth)
+        success, msg, res = apis.post_note(note_info)
 ```
 
 Completion criteria: success=True, share_link returned, show link to user.
 
+## Cookie Management & Re-login
+
+### Cookie priority: PC-first (IMPORTANT)
+
+PC cookie (`~/.config/aione/xhs/default.json`) is the **primary cookie for everything**: search, analysis, AND publishing. A fresh PC cookie with `web_session` can call Creator APIs (`get_all_posted_notes`, `post_note`) directly — see Pitfall #20. The Creator cookie (`~/.config/aione/xhs/creator.json`) is a **fallback only**.
+
+This means: in most sessions, you only need to scan the PC QR code. Skip the Creator QR login entirely unless PC cookie publish fails.
+
+### Quick validity check
+Check if `web_session` is present in the cookie string. If missing, the cookie is expired/stale and needs refresh:
+```python
+import json, os
+for name, path in [("PC", "~/.config/aione/xhs/default.json"), ("Creator", "~/.config/aione/xhs/creator.json")]:
+    p = os.path.expanduser(path)
+    if os.path.exists(p):
+        cookie = json.load(open(p))["cookie"]
+        expired = "web_session" not in cookie
+        print(f"{name} cookie: {'EXPIRED' if expired else 'valid'} ({len(cookie)} chars)")
+    else:
+        print(f"{name} cookie: NOT FOUND")
+```
+For a definitive check, run a search with PC cookie (see Prerequisites step 4).
+
+### QR login scripts
+
+**PC login (run this FIRST — most reliable):**
+`/home/ubuntu/.hermes/venvs/aione/bin/python3 /home/ubuntu/xhs_qr_login.py`
+- Saves QR to `/home/ubuntu/xhs_qrcode.png`
+- Polls 180s for scan
+- On success, outputs JSON with cookie fields to stdout
+
+**Creator login (only if PC cookie can't publish):**
+`/home/ubuntu/.hermes/venvs/aione/bin/python3 /home/ubuntu/xhs_creator_qr_login.py`
+- Saves QR to `/home/ubuntu/xhs_creator_qrcode.png`
+- More prone to HTTP 406 IP blocks (see below)
+
+Run them as background processes. Both can run simultaneously to save time, but usually PC-only is enough.
+
+### Saving cookie after QR login
+
+The login scripts output `{"cookies": {...}}` to stdout. You must save this to the aione cookie file:
+
+```python
+import json, os
+# Parse the script's stdout JSON, then build a semicolon-joined cookie string
+# For PC login:
+raw = {"abRequestId": "...", "web_session": "...", ...}  # from script output
+cookie_str = "; ".join(f"{k}={v}" for k, v in raw.items())
+path = os.path.expanduser("~/.config/aione/xhs/default.json")
+os.makedirs(os.path.dirname(path), exist_ok=True)
+json.dump({"cookie": cookie_str}, open(path, "w"), ensure_ascii=False)
+print(f"Saved to {path}")
+```
+
+### Creator QR login HTTP 406
+The Creator QR endpoint (`creator.xiaohongshu.com`) is more aggressively IP-controlled than the PC endpoint. **PC QR login can succeed while Creator QR login fails with HTTP 406 simultaneously.** This is server-side IP risk control, not a code bug. Retrying immediately usually fails again. Options:
+- **Use PC cookie for publishing instead** — most of the time this works (see Pitfall #20).
+- Wait several hours and retry (IP cooldown).
+- Publish manually from the app if the note is urgent (hand off title + desc + image paths).
+- If only PC cookie is fresh, search/analysis steps can proceed; publishing can also use PC cookie.
+
 ## Common Pitfalls
 
-See also: `references/xhs-publish-pitfalls.md` for full session-verified details.
+See also: `references/xhs-publish-pitfalls.md` for full session-verified details, and `references/xhs-image-fields.md` for XHS search result image URL structure (for analysis/reference only — do NOT re-upload XHS CDN images).
 
 0. **Browser-first reflex — DON'T** — XHS blocks datacenter IPs (error 300012 "IP at risk"). Always go straight to the aione Python API for search. Do NOT `browser_navigate` to xiaohongshu.com. The user corrected this once ("你用skill啊") — it's a round-trip waste.
 
@@ -235,9 +328,27 @@ See also: `references/xhs-publish-pitfalls.md` for full session-verified details
 
 17. **No delete-note API exists** — XHS_Creator_Apis has no delete_note method. The creator web dashboard (creator.xiaohongshu.com) requires separate browser login (cookie injection doesn't work well). If a note needs deletion, tell the user to delete it manually in the XHS app: Profile → Notes → select → delete.
 
+18. **Publish rate limiting (code=-1 on ALL retries)** — If you've published 3+ notes in the same session (same day), subsequent `post_note` calls will return `code=-1` on all 3 retries even with valid cookies and small images. This is NOT a cookie expiry issue (you can still call `get_all_posted_notes` successfully). It's account-level rate limiting on the creator publishing endpoint. The fix is to WAIT several hours before retrying. Do not keep hammering the API — each retry attempt may extend the cooldown. If the user needs the note published immediately, give them the title + desc + image paths and let them publish manually from the app.
+
+19. **XHS-internal images cause publish rejection** — Downloading images from XHS search results (via `cover.url_default` or `image_list[].info_list[].url`) and re-uploading them as card backgrounds triggers `code=-1` rejection. XHS likely fingerprints its own CDN images and blocks re-upload. This applies even if the image is embedded as base64 in an HTML card and rendered to PNG. Workaround: use CSS-only gradients for aesthetic cards, or use Unsplash/external stock photos (not from XHS CDN). The `cover.url_default` field structure is documented in `references/xhs-image-fields.md`.
+
+18. **Topic-appropriate stock imagery** — When downloading stock photos for card backgrounds, the imagery MUST match the topic's aesthetic. Generic landscape photos for a dreamcore/梦核 topic is a hard reject ("素材图和梦核没啥关系"). For aesthetic topics (梦核, dreamcore, liminal space), search for: empty rooms, staircases, corridors, old balconies, windows, pools — the imagery IS the aesthetic, not decoration. Then apply CSS filters (desaturate, darken, blur, sepia) to unify the mood. For travel topics, search for actual city landmarks (Tokyo street, Mt Fuji, food). Always verify downloaded image > 1KB; failed Unsplash downloads return 29 bytes.
+
+20. **PC cookie can call Creator APIs directly (IMPORTANT)** — A fresh PC cookie (from `~/.config/aione/xhs/default.json`) with `web_session` can initialize `XHS_Creator_Apis` and call `get_all_posted_notes()` / `post_note()` directly. The API may return HTTP 406 in the status field, but the response body still contains valid data (notes list, publish results). This means:
+    - You usually DON'T need a separate Creator QR login — PC QR login is enough for both search and publish.
+    - Creator QR endpoint is MORE prone to 406 IP blocks than PC QR endpoint.
+    - In Step 5 (Publish), use PC cookie first; only fall back to Creator cookie if PC cookie publish fails.
+    - Verified: `get_all_posted_notes()` with PC cookie returned HTTP 406 status but body included full notes list with titles, images, dates.
+    - This was discovered in a session where Creator QR login failed 3x with 406 but PC cookie worked perfectly for both search and publish.
+
+21. **Cookie auto-save after QR login** — The QR login scripts output cookie JSON to stdout but do NOT auto-save to `~/.config/aione/xhs/default.json`. You must manually parse the stdout JSON, build a semicolon-joined cookie string, and write `{"cookie": "k=v; k2=v2; ..."}` to the file. Forgetting this step leaves the old expired cookie in place and all subsequent API calls will fail silently. See "Saving cookie after QR login" in the Cookie Management section.
+
+22. **`aione auth xhs status` only checks file existence** — The command reports `configured: true` as long as the cookie file exists, even if the cookie inside is expired. Do NOT rely on it for validity checking. Always do the API-level check (search_note with "测试") described in Prerequisites step 4.
+
 ## Verification Checklist
 
 - [ ] ~/.hermes/notes/xhs.md read at session start
+- [ ] PC cookie validity checked (web_session present + search_note test passed)
 - [ ] 30 notes fetched (or as many as available if fewer)
 - [ ] Notes sorted by engagement (likes + collects)
 - [ ] Hot topic summary drafted
@@ -246,6 +357,7 @@ See also: `references/xhs-publish-pitfalls.md` for full session-verified details
 - [ ] 3-5 hashtags in #xxx[话题]# format
 - [ ] Card image generated (1080x1440, > 50KB)
 - [ ] User shown full draft + asked to confirm
+- [ ] PC cookie used for publish (Creator cookie as fallback only)
 - [ ] type=0 (public) in note_info
 - [ ] Image passed as bytes
 - [ ] NODE_PATH exported
@@ -271,6 +383,41 @@ When generating title options, provide 4-6 choices across different angles (FOMO
 ## Multi-Keyword Search Strategy
 
 When the user's topic spans multiple sub-topics (e.g. "日本旅游攻略" → food, transport, attractions, shopping, accommodation), search **5 related keywords** in one script run (e.g. "日本旅游攻略", "日本自由行", "东京美食", "大阪攻略", "日本购物"). Each keyword returns 8 top notes. Cross-reference across all 5 to build a comprehensive content map before designing the 9-card structure. This gives richer, more diverse content than searching one keyword alone.
+
+## Poster Mode: Aesthetic/Editorial Cards (NOT PPT-style)
+
+**Trigger:** When the topic is aesthetic, mood-based, or lifestyle (梦核, dreamcore, liminal space, aesthetic styles, 氛围感, 情绪板) rather than information-dense (travel guides, checklists, how-to).
+
+**User feedback that triggered this mode:** "太像ppt了" (too much like PPT) + "素材图和梦核没啥关系" (stock photos don't match the dreamcore aesthetic) + "重新设计配图版面，要有设计感，不要和之前一样那么死板"
+
+**Poster Mode principles (DIFFERENT from standard card mode):**
+- **Full-screen background image** — the image IS the card, not a decoration on top of a card template
+- **Minimal text: 20-30 chars per card** — the user explicitly said "一张图字可以少但是字体一定要大"
+- **Giant typography: 90-160px** for main text, 36-42px for descriptions
+- **No card boxes, no item lists, no bullet points** — text floats directly over the image
+- **Every card has a UNIQUE layout** — do NOT repeat the same layout across cards. One centers text, another puts it bottom-left, another splits left-image/right-text
+- **CSS filters on background images** — `filter: contrast(1.2) brightness(0.6) saturate(0.3) sepia(0.4) blur(4px)` etc. to create the aesthetic mood
+- **Gradient overlays** — `linear-gradient(180deg, rgba(dark,0.3), rgba(dark,0.7))` to ensure text readability
+- **Serif fonts for editorial feel** — `font-family: 'Noto Serif SC', serif` for titles, sans-serif for body
+- **Text fills the frame** — large fonts + padding to fill 1080x1440, not tiny text in a corner
+
+**Topic-appropriate imagery is CRITICAL:**
+- For 梦核/dreamcore/liminal space: empty rooms, staircases, corridors, old balconies, windows — NOT random landscape photos
+- For aesthetic topics: search Unsplash with topic-specific keywords (empty room, corridor, staircase, window, balcony)
+- Always verify downloaded image > 1KB (failed downloads return 29 bytes)
+- Apply heavy CSS filters (desaturate, darken, hue-rotate) to make stock photos match the aesthetic mood
+
+**Poster Mode layout examples (each card different):**
+1. Full-screen image + centered mega text (160px) + English subtitle
+2. Image left 45% + text right 55% split, text bottom-aligned
+3. Blurred full-screen image + centered text + divider line
+4. Full-screen image + text bottom-left, gradient from right
+5. Full-screen image with sepia filter + text bottom, warm tones
+6. Blurred dark image + centered question text + CTA
+
+**When to use Poster Mode vs Standard Card Mode:**
+- Poster Mode: 梦核, aesthetics, mood boards, 氛围感, emotional topics, art styles
+- Standard Card Mode (layouts A/B/C): travel guides, food lists, checklists, how-to, comparison, step-by-step
 
 ## One-Shot Recipe
 

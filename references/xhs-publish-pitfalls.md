@@ -1,5 +1,12 @@
 # XHS Publishing Pitfalls (Session-Verified)
 
+## Cookie Management
+- PC cookie (`~/.config/aione/xhs/default.json`) and Creator cookie (`~/.config/aione/xhs/creator.json`) are **separate sessions** with independent expiry.
+- Quick validity check: `web_session` in cookie string. If missing → expired, needs re-login.
+- QR login scripts: `/home/ubuntu/xhs_qr_login.py` (PC), `/home/ubuntu/xhs_creator_qr_login.py` (Creator). Run both in parallel.
+- Both scripts output `{"cookies": {...}}` JSON on success. Save as `{"cookie": "k=v; k2=v2; ..."}` (semicolon-joined string) to respective JSON file.
+- **Creator QR endpoint is more IP-controlled than PC.** PC login can succeed while Creator login fails with HTTP 406 simultaneously. Retrying immediately usually fails — wait hours or publish manually.
+
 ## Search
 - `aione xhs note search` CLI has a bug (`TypeError: missing 'self'`). Call XHS_Apis directly via Python.
 - `search_note()` returns tuple `(success: bool, msg: str, result: dict)`. Use `isinstance(result, dict)` then `result.get("data", {}).get("items", [])`. Do NOT use `len(result)` or `result[2]`.
